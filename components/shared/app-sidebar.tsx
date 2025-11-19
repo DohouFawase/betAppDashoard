@@ -21,6 +21,7 @@ import {
 } from "lucide-react"
 
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import Link from 'next/link';
 
 // Structure de données optimisée avec badges et descriptions
 const adminItems = [
@@ -54,8 +55,8 @@ const adminItems = [
     items: [
       { title: "Sports", url: "/admin/sports", icon: Trophy },
       { title: "Pays & Régions", url: "/admin/regions", icon: Globe },
-      { title: "Ligues", url: "/admin/leagues", icon: Dices },
-      { title: "Équipes", url: "/admin/teams", icon: Users },
+      { title: "Ligues & Saison", url: "/admin/leagues", icon: Dices },
+      { title: "Équipes & Jouer", url: "/admin/teams", icon: Users },
     ],
   },
   {
@@ -147,7 +148,7 @@ export default function AppSidebar() {
                           }
                         `}
                       >
-                        <a 
+                        <Link 
                           href={item.url} 
                           onClick={(e) => {
                             e.preventDefault();
@@ -176,7 +177,7 @@ export default function AppSidebar() {
                               {item.badge}
                             </span>
                           )}
-                        </a>
+                        </Link>
                       </SidebarMenuButton>
                     </SidebarMenuItem>
                   );
