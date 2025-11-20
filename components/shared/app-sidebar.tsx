@@ -1,5 +1,7 @@
 'use client'
 import React from 'react';
+// 🛑 NOUVEL IMPORT : usePathname pour suivre l'URL actuelle
+import { usePathname } from 'next/navigation';
 import {
   Sidebar,
   SidebarContent,
@@ -30,7 +32,7 @@ const adminItems = [
     items: [
       {
         title: "Tableau de Bord",
-        url: "/admin/dashboard",
+        url: "/admin",
         icon: LayoutDashboard,
         badge: "3",
         badgeVariant: "default"
@@ -87,7 +89,8 @@ const adminItems = [
 ];
 
 export default function AppSidebar() {
-  const [activeItem, setActiveItem] = React.useState("/admin/dashboard");
+  // 🛑 Utiliser usePathname pour la gestion de l'état actif après navigation
+  const currentPath = usePathname();
 
   return (
     <Sidebar variant="sidebar" collapsible="icon" className="border-r border-gray-200 dark:border-gray-800">
@@ -135,7 +138,8 @@ export default function AppSidebar() {
             <SidebarGroupContent>
               <SidebarMenu className="space-y-1">
                 {group.items.map((item) => {
-                  const isActive = activeItem === item.url;
+                  // 🛑 Comparaison avec le chemin actuel du routeur
+                  const isActive = currentPath === item.url;
                   return (
                     <SidebarMenuItem key={item.title}>
                       <SidebarMenuButton 
@@ -150,10 +154,7 @@ export default function AppSidebar() {
                       >
                         <Link 
                           href={item.url} 
-                          onClick={(e) => {
-                            e.preventDefault();
-                            setActiveItem(item.url);
-                          }}
+                          // 🛑 Suppression du onClick et de preventDefault
                           className="flex items-center gap-3 px-3 py-2"
                         >
                           {/* Indicateur actif */}

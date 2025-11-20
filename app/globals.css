@@ -41,7 +41,6 @@ body {
   font-family: Arial, Helvetica, sans-serif;
 }
 
-@import "tailwindcss";
 @import "tw-animate-css";
 
 @custom-variant dark (&:is(.dark *));
@@ -165,4 +164,3 @@ body {
 .bg-image {
   background-image: '/cover.jpg';
 }
-

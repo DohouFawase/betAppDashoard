@@ -56,3 +56,57 @@ export type TeamDetailData = {
     players: PlayerInTeamDetail[];
 }
 
+export type LeagueForTable = {
+    id: string
+    name: string
+    format: "league" | "tournament"
+    startDate: Date
+    endDate: Date
+    sport: { name: string }
+    region: { 
+        name: string,
+        country: { name: string }
+    }
+    eventsCount: number
+}
+
+
+export type EventMock = {
+  id: string;
+  startTime: string; 
+  league: {
+    name: string;
+    logo: string;
+    regionCode: string; 
+  };
+  teamHome: {
+    name: string;
+    logo: string;
+  };
+  teamAway: {
+    name: string;
+    logo: string;
+  };
+  odds: {
+    home: number; 
+    draw: number; 
+    away: number; 
+  };
+
+   playerHomePhoto?: string; // URL photo joueur domicile
+    playerAwayPhoto?: string; // URL photo joueur extérieur
+    matchTitle?: string; // Ex: "Champions League Match 7"
+};
+
+
+export type LiveEventMock = {
+    id: string;
+    leagueName: string;
+    teamHome: string;
+    teamAway: string;
+    scoreHome: number;
+    scoreAway: number;
+    minute: number; // Minute du match (ex: 45)
+    status: 'HT' | 'Live'; // Mi-temps ou En cours
+};
+

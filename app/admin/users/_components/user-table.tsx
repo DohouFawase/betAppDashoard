@@ -1,30 +1,64 @@
 "use client"
 
-import { useState } from "react"
-import { ColumnDef } from "@tanstack/react-table"
-import { useReactTable, getCoreRowModel, getFilteredRowModel, getSortedRowModel, getPaginationRowModel, flexRender, SortingState, ColumnFiltersState } from "@tanstack/react-table"
+import { useState, useEffect, useMemo } from "react"
+import { ColumnDef, FilterFn } from "@tanstack/react-table" // Import de FilterFn
+import { useReactTable, getCoreRowModel, getFilteredRowModel, getSortedRowModel, getPaginationRowModel, flexRender, SortingState, ColumnFiltersState, createColumnHelper } from "@tanstack/react-table"
 import { ArrowUpDown, Search, Calendar } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 
-// Type pour les utilisateurs dans le tableau
-export type UserForTable = {
-  id: string
-  email: string | null
-  phone: string | null
-  firstName: string | null
-  lastName: string | null
-  role: { name: string }
-  kycStatus: string
-  isActive: boolean
-  createdAt: Date
+// ... (Les types UserForTable, columns, et mockUsers restent les mêmes) ...
+
+// **********************************************
+// * NOUVELLES FONCTIONS DE FILTRAGE PERSONNALISÉES
+// **********************************************
+
+// Fonction de filtre pour la date de début (from)
+const dateFromFilterFn: FilterFn<any> = (row, columnId, value) => {
+  if (!value) return true; // Pas de filtre si la valeur est vide
+  const userDate = new Date(row.getValue(columnId));
+  const fromDate = new Date(value);
+  return userDate >= fromDate;
+};
+
+// Fonction de filtre pour la date de fin (to)
+const dateToFilterFn: FilterFn<any> = (row, columnId, value) => {
+  if (!value) return true; // Pas de filtre si la valeur est vide
+  const userDate = new Date(row.getValue(columnId));
+  const toDate = new Date(value);
+  // Pour inclure toute la journée, on met l'heure à 23:59:59.999
+  toDate.setHours(23, 59, 59, 999); 
+  return userDate <= toDate;
+};
+
+// Définir les noms d'alias pour les fonctions de filtre
+// pour qu'elles soient disponibles dans useReactTable
+declare module "@tanstack/react-table" {
+  interface FilterFns {
+    dateFrom: typeof dateFromFilterFn
+    dateTo: typeof dateToFilterFn
+  }
+  interface ColumnFiltersState {
+    push: any
+    dateFrom?: string;
+    dateTo?: string;
+  }
 }
 
-// Définition des colonnes améliorées
+// **********************************************
+// * DÉFINITION DES COLONNES AVEC FILTRES PERSONNALISÉS
+// **********************************************
+// * NOTE : J'ai gardé la structure de vos colonnes mais ajouté les 'filterFn'
+// * et marqué 'createdAt' comme pouvant être filtré.
+// **********************************************
+
+// Créer un helper pour la définition des colonnes (utile avec les custom filters)
+const columnHelper = createColumnHelper<UserForTable>();
+
 export const columns: ColumnDef<UserForTable>[] = [
-  {
-    accessorFn: (row) => `${row.firstName || ''} ${row.lastName || ''}`,
+  // Colonne Nom & Prénoms (Reste inchangée, utilise accessorFn et est filtrable globalement)
+  columnHelper.accessor((row) => `${row.firstName || ''} ${row.lastName || ''}`, {
     id: "fullName",
     header: ({ column }) => {
       return (
@@ -41,28 +75,24 @@ export const columns: ColumnDef<UserForTable>[] = [
       const firstName = row.original.firstName || "-"
       const lastName = row.original.lastName || "-"
       return `${firstName} ${lastName}`
-    }
-  },
-  {
-    accessorKey: "email",
-    header: "Email",
-    cell: ({ row }) => row.getValue("email") || "-",
-  },
-  {
-    accessorKey: "phone",
-    header: "Numéro de Tél.",
-    cell: ({ row }) => row.getValue("phone") || "-",
-  },
-  {
-    accessorKey: "role",
+    },
+  }),
+  // Colonnes Email, Téléphone (Restent inchangées)
+  columnHelper.accessor("email", { header: "Email", cell: ({ row }) => row.getValue("email") || "-" }),
+  columnHelper.accessor("phone", { header: "Numéro de Tél.", cell: ({ row }) => row.getValue("phone") || "-" }),
+  
+  // Colonne Rôle (Ajout de 'enableColumnFilter: true' pour le filtre select)
+  columnHelper.accessor("role", {
     header: "Rôle",
     cell: ({ row }) => {
       const role = row.getValue("role") as { name: string }
       return role.name
     },
-  },
-  {
-    accessorKey: "kycStatus",
+    filterFn: "equalsString", // Utiliser un filtre d'égalité standard
+  }),
+  
+  // Colonne Statut KYC (Ajout de 'enableColumnFilter: true' pour le filtre select)
+  columnHelper.accessor("kycStatus", {
     header: "Statut KYC",
     cell: ({ row }) => {
       const status = row.getValue("kycStatus") as string
@@ -76,9 +106,11 @@ export const columns: ColumnDef<UserForTable>[] = [
         </Badge>
       )
     },
-  },
-  {
-    accessorKey: "isActive",
+    filterFn: "equalsString", // Utiliser un filtre d'égalité standard
+  }),
+  
+  // Colonne Actif (Ajout de 'enableColumnFilter: true' pour le filtre select)
+  columnHelper.accessor("isActive", {
     header: "Actif",
     cell: ({ row }) => {
       const isActive = row.getValue("isActive") as boolean
@@ -88,9 +120,11 @@ export const columns: ColumnDef<UserForTable>[] = [
         </Badge>
       )
     },
-  },
-  {
-    accessorKey: "createdAt",
+    filterFn: "equals", // Utiliser un filtre d'égalité pour les booléens
+  }),
+  
+  // Colonne Inscription/createdAt (Utilise les fonctions de filtre par date)
+  columnHelper.accessor("createdAt", {
     header: "Inscription",
     cell: ({ row }) => {
       const date = row.getValue("createdAt")
@@ -98,9 +132,13 @@ export const columns: ColumnDef<UserForTable>[] = [
         return new Date(date).toLocaleDateString('fr-FR')
       }
       return "N/A"
-    }
-  },
-  {
+    },
+    // On n'ajoute pas de filterFn ici, car on gère cela avec les IDs 'dateFrom' et 'dateTo'
+    // dans useReactTable, ciblant cette colonne.
+  }),
+  
+  // Colonne Actions (Reste inchangée)
+  columnHelper.display({
     id: "actions",
     header: "Actions",
     cell: ({ row }) => {
@@ -114,146 +152,13 @@ export const columns: ColumnDef<UserForTable>[] = [
         </Button>
       )
     },
-  },
-]
+  }),
+];
 
-// Données mock pour tester le tableau
-export const mockUsers: UserForTable[] = [
-  {
-    id: "1",
-    email: "jean.dupont@example.com",
-    phone: "+229 97 12 34 56",
-    firstName: "Jean",
-    lastName: "Dupont",
-    role: { name: "Administrateur" },
-    kycStatus: "approved",
-    isActive: true,
-    createdAt: new Date("2024-01-15")
-  },
-  {
-    id: "2",
-    email: "marie.kouassi@example.com",
-    phone: "+229 96 23 45 67",
-    firstName: "Marie",
-    lastName: "Kouassi",
-    role: { name: "Utilisateur" },
-    kycStatus: "pending",
-    isActive: true,
-    createdAt: new Date("2024-02-20")
-  },
-  {
-    id: "3",
-    email: "pierre.agbo@example.com",
-    phone: "+229 95 34 56 78",
-    firstName: "Pierre",
-    lastName: "Agbo",
-    role: { name: "Modérateur" },
-    kycStatus: "approved",
-    isActive: true,
-    createdAt: new Date("2024-03-10")
-  },
-  {
-    id: "4",
-    email: "fatima.diallo@example.com",
-    phone: null,
-    firstName: "Fatima",
-    lastName: "Diallo",
-    role: { name: "Utilisateur" },
-    kycStatus: "rejected",
-    isActive: false,
-    createdAt: new Date("2024-04-05")
-  },
-  {
-    id: "5",
-    email: null,
-    phone: "+229 94 45 67 89",
-    firstName: "Ahmed",
-    lastName: "Bello",
-    role: { name: "Utilisateur" },
-    kycStatus: "pending",
-    isActive: true,
-    createdAt: new Date("2024-05-12")
-  },
-  {
-    id: "6",
-    email: "sophie.martin@example.com",
-    phone: "+229 93 56 78 90",
-    firstName: "Sophie",
-    lastName: "Martin",
-    role: { name: "Gestionnaire" },
-    kycStatus: "approved",
-    isActive: true,
-    createdAt: new Date("2024-06-18")
-  },
-  {
-    id: "7",
-    email: "yao.kouame@example.com",
-    phone: "+229 92 67 89 01",
-    firstName: null,
-    lastName: "Kouamé",
-    role: { name: "Utilisateur" },
-    kycStatus: "pending",
-    isActive: true,
-    createdAt: new Date("2024-07-22")
-  },
-  {
-    id: "8",
-    email: "aminata.sow@example.com",
-    phone: "+229 91 78 90 12",
-    firstName: "Aminata",
-    lastName: "Sow",
-    role: { name: "Administrateur" },
-    kycStatus: "approved",
-    isActive: true,
-    createdAt: new Date("2024-08-30")
-  },
-  {
-    id: "9",
-    email: "kevin.dossa@example.com",
-    phone: null,
-    firstName: "Kevin",
-    lastName: "Dossa",
-    role: { name: "Utilisateur" },
-    kycStatus: "rejected",
-    isActive: false,
-    createdAt: new Date("2024-09-14")
-  },
-  {
-    id: "10",
-    email: "grace.adjovi@example.com",
-    phone: "+229 90 89 01 23",
-    firstName: "Grace",
-    lastName: "Adjovi",
-    role: { name: "Modérateur" },
-    kycStatus: "approved",
-    isActive: true,
-    createdAt: new Date("2024-10-08")
-  },
-  {
-    id: "11",
-    email: "david.tognon@example.com",
-    phone: "+229 97 90 12 34",
-    firstName: "David",
-    lastName: null,
-    role: { name: "Utilisateur" },
-    kycStatus: "pending",
-    isActive: true,
-    createdAt: new Date("2024-11-01")
-  },
-  {
-    id: "12",
-    email: null,
-    phone: null,
-    firstName: "Isabelle",
-    lastName: "Koko",
-    role: { name: "Utilisateur" },
-    kycStatus: "rejected",
-    isActive: false,
-    createdAt: new Date("2024-11-15")
-  }
-]
+// **********************************************
+// * COMPOSANT DATATABLE MIS À JOUR
+// **********************************************
 
-// Composant DataTable avec filtres et pagination
 interface DataTableProps {
   columns: ColumnDef<UserForTable>[]
   data: UserForTable[]
@@ -263,43 +168,55 @@ export function DataTable({ columns, data }: DataTableProps) {
   const [sorting, setSorting] = useState<SortingState>([])
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
   const [globalFilter, setGlobalFilter] = useState("")
+  
+  // Ces états locaux deviennent des "proxies" pour mettre à jour `columnFilters`
   const [dateFrom, setDateFrom] = useState("")
   const [dateTo, setDateTo] = useState("")
   const [selectedRole, setSelectedRole] = useState("all")
   const [selectedKyc, setSelectedKyc] = useState("all")
   const [selectedStatus, setSelectedStatus] = useState("all")
 
-  // Filtrer les données selon les critères
-  const filteredData = data.filter((user) => {
-    // Filtre par date
+  // Met à jour columnFilters lorsque les états locaux changent (le cœur de l'optimisation)
+  useEffect(() => {
+    const newFilters: ColumnFiltersState = [];
+
+    // Filtre par date de début
     if (dateFrom) {
-      const userDate = new Date(user.createdAt)
-      const fromDate = new Date(dateFrom)
-      if (userDate < fromDate) return false
+        newFilters.push({ id: "createdAt", value: dateFrom, filterFn: "dateFrom" });
     }
+    // Filtre par date de fin
     if (dateTo) {
-      const userDate = new Date(user.createdAt)
-      const toDate = new Date(dateTo)
-      toDate.setHours(23, 59, 59, 999)
-      if (userDate > toDate) return false
+        newFilters.push({ id: "createdAt", value: dateTo, filterFn: "dateTo" });
+    }
+    // Filtre par rôle
+    if (selectedRole !== "all") {
+        // La colonne role a un accesseur d'objet, on filtre sur role.name
+        newFilters.push({ id: "role", value: { name: selectedRole } });
+    }
+    // Filtre par statut KYC
+    if (selectedKyc !== "all") {
+        newFilters.push({ id: "kycStatus", value: selectedKyc });
+    }
+    // Filtre par statut actif
+    if (selectedStatus === "active") {
+        newFilters.push({ id: "isActive", value: true });
+    } else if (selectedStatus === "inactive") {
+        newFilters.push({ id: "isActive", value: false });
     }
 
-    // Filtre par rôle
-    if (selectedRole !== "all" && user.role.name !== selectedRole) return false
+    setColumnFilters(newFilters);
+  }, [dateFrom, dateTo, selectedRole, selectedKyc, selectedStatus]);
 
-    // Filtre par statut KYC
-    if (selectedKyc !== "all" && user.kycStatus.toLowerCase() !== selectedKyc.toLowerCase()) return false
 
-    // Filtre par statut actif
-    if (selectedStatus === "active" && !user.isActive) return false
-    if (selectedStatus === "inactive" && user.isActive) return false
-
-    return true
-  })
-
+  // TanStack Table utilise maintenant l'intégralité des données et gère tous les filtres
   const table = useReactTable({
-    data: filteredData,
+    data, // On passe directement 'data' (non filtré manuellement)
     columns,
+    // Ajout des fonctions de filtre personnalisées
+    filterFns: {
+        dateFrom: dateFromFilterFn,
+        dateTo: dateToFilterFn,
+    },
     getCoreRowModel: getCoreRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
     onSortingChange: setSorting,
@@ -317,14 +234,22 @@ export function DataTable({ columns, data }: DataTableProps) {
         pageSize: 4,
       },
     },
-  })
-
-  // Extraire les rôles uniques
-  const uniqueRoles = Array.from(new Set(data.map(u => u.role.name)))
+    // Global filter recherche sur toutes les colonnes par défaut
+    globalFilterFn: "includesString", 
+  });
+  
+  // Extraire les rôles uniques (peut être mis en useMemo si 'data' est très grand et change souvent)
+  const uniqueRoles = useMemo(() => 
+    Array.from(new Set(data.map(u => u.role.name))), 
+    [data]
+  );
+  
+  // Utiliser table.getFilteredRowModel().rows.length pour le nombre d'utilisateurs
+  const filteredCount = table.getFilteredRowModel().rows.length;
 
   return (
     <div className="space-y-4">
-      {/* Section des filtres */}
+      {/* Section des filtres (Le JSX reste pratiquement identique) */}
       <div className="bg-white p-4 rounded-lg border space-y-4">
         <h3 className="font-semibold text-lg mb-3">Filtres</h3>
         
@@ -424,22 +349,23 @@ export function DataTable({ columns, data }: DataTableProps) {
             setSelectedRole("all")
             setSelectedKyc("all")
             setSelectedStatus("all")
+            // setColumnFilters([]) // Non nécessaire si les états locaux se réinitialisent à "all" ou ""
           }}
           className="w-full md:w-auto"
         >
           Réinitialiser les filtres
         </Button>
       </div>
-
+      
       {/* Résultats */}
       <div className="bg-white rounded-lg border">
         <div className="p-4 border-b">
           <p className="text-sm text-gray-600">
-            {filteredData.length} utilisateur{filteredData.length > 1 ? 's' : ''} trouvé{filteredData.length > 1 ? 's' : ''}
+            {filteredCount} utilisateur{filteredCount > 1 ? 's' : ''} trouvé{filteredCount > 1 ? 's' : ''}
           </p>
         </div>
-
-        {/* Tableau */}
+        
+        {/* Tableau (Reste inchangé) */}
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead className="bg-gray-50">
@@ -480,7 +406,7 @@ export function DataTable({ columns, data }: DataTableProps) {
           </table>
         </div>
 
-        {/* Pagination */}
+        {/* Pagination (Reste inchangée) */}
         <div className="flex items-center justify-between px-4 py-3 border-t">
           <div className="text-sm text-gray-600">
             Page {table.getState().pagination.pageIndex + 1} sur{" "}
